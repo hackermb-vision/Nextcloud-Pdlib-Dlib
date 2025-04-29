@@ -1,0 +1,51 @@
+name: Build Docker Image on Digest Change
+
+on:
+  workflow_run:
+    workflows: ["Check for Nextcloud Base Image Update"]
+    types:
+      - completed
+
+jobs:
+  build-if-updated:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Download digest artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: updated-digest
+        continue-on-error: true  # So we can check if it existed
+
+      - name: Check if digest artifact exists
+        id: check
+        run: |
+          if [[ -f .nextcloud_base_digest ]]; then
+            echo "updated=true" >> $GITHUB_OUTPUT
+          else
+            echo "updated=false" >> $GITHUB_OUTPUT
+
+      - name: Exit if no update
+        if: steps.check.outputs.updated == 'false'
+        run: echo "No digest change detected — skipping build."
+
+      - name: Checkout code
+        if: steps.check.outputs.updated == 'true'
+        uses: actions/checkout@v2
+
+      - name: Login to Docker Hub
+        if: steps.check.outputs.updated == 'true'
+        env:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: docker login -u $username -p $password
+
+      - name: Build Docker image
+        if: steps.check.outputs.updated == 'true'
+        run: |
+          docker build . -f Dockerfile -t hackermb/nextcloud-pdlib-dlib:latest
+
+      - name: Push Docker image
+        if: steps.check.outputs.updated == 'true'
+        run: docker push hackermb/nextcloud-pdlib-dlib:latest
