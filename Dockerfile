@@ -1,11 +1,12 @@
 ########################
-# Build stage (Debian)
+# Build stage (same as Nextcloud base)
 ########################
-FROM php:8.2-cli-bullseye AS builder
+FROM nextcloud:production AS builder
 
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake pkg-config autoconf libtool \
-    libopenblas-dev libx11-dev wget unzip git
+    libopenblas-dev libx11-dev php-dev php-pear git unzip wget
 
 # Build dlib
 ARG DLIB_VERSION=19.24
@@ -19,7 +20,7 @@ RUN git clone https://github.com/matiasdelellis/pdlib.git && \
     cd pdlib && phpize && ./configure && make -j$(nproc) && make install
 
 ########################
-# Final runtime stage Nextcloud
+# Final stage (same as builder, but minimal)
 ########################
 FROM nextcloud:production
 
@@ -27,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libx11-6 libxext6 libopenblas0 && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy built libraries and PHP extension from builder
+# Copy libraries and extension
 COPY --from=builder /usr/local/lib/libdlib.so* /usr/local/lib/
 COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
 
