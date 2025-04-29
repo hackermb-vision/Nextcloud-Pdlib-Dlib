@@ -2,14 +2,15 @@ name: Check for Nextcloud Base Image Update
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # Every day at 6 AM UTC
-  workflow_dispatch:      # Allow manual trigger
+    - cron: '0 6 * * *'  # Runs daily at 6 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Needed to push updated digest to the repo
 
 jobs:
   check-nextcloud:
     runs-on: ubuntu-latest
-    outputs:
-      updated: ${{ steps.check.outputs.updated }}
 
     steps:
       - name: Checkout repository
@@ -25,7 +26,7 @@ jobs:
         run: |
           echo "digest=$(skopeo inspect docker://docker.io/library/nextcloud:production --format '{{.Digest}}')" >> $GITHUB_OUTPUT
 
-      - name: Compare with previous digest
+      - name: Compare with stored digest
         id: check
         run: |
           DIGEST_FILE=".nextcloud_base_digest"
@@ -38,21 +39,29 @@ jobs:
             OLD_DIGEST=""
           fi
 
-          echo "Previous digest: $OLD_DIGEST"
+          echo "Old digest: $OLD_DIGEST"
 
           if [[ "$OLD_DIGEST" != "$NEW_DIGEST" ]]; then
             echo "$NEW_DIGEST" > "$DIGEST_FILE"
             echo "Digest updated!"
-            echo "updated=true" >> $GITHUB_OUTPUT
+            echo "updated=true" >> $GITHUB_ENV
           else
-            echo "No update detected."
-            echo "updated=false" >> $GITHUB_OUTPUT
-          fi
+            echo "No update needed."
+            echo "updated=false" >> $GITHUB_ENV
 
-      - name: Upload digest file if updated
-        if: steps.check.outputs.updated == 'true'
+      - name: Upload new digest as artifact
+        if: env.updated == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: nextcloud-base-digest
           path: .nextcloud_base_digest
           include-hidden-files: true
+
+      - name: Commit and push updated digest to repo
+        if: env.updated == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .nextcloud_base_digest
+          git commit -m "Update stored base image digest"
+          git push
