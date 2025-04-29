@@ -29,25 +29,21 @@ jobs:
       - name: Compare with stored digest
         id: check
         run: |
-          DIGEST_FILE=".nextcloud_base_digest"
-          NEW_DIGEST="${{ steps.digest.outputs.digest }}"
-          echo "New digest: $NEW_DIGEST"
-
-          if [ -f "$DIGEST_FILE" ]; then
-            OLD_DIGEST=$(cat "$DIGEST_FILE")
-          else
-            OLD_DIGEST=""
-          fi
-
-          echo "Old digest: $OLD_DIGEST"
-
-          if [[ "$OLD_DIGEST" != "$NEW_DIGEST" ]]; then
-            echo "$NEW_DIGEST" > "$DIGEST_FILE"
-            echo "Digest updated!"
-            echo "updated=true" >> $GITHUB_ENV
-          else
-            echo "No update needed."
-            echo "updated=false" >> $GITHUB_ENV
+           DIGEST_FILE=".nextcloud_base_digest"
+           if [[ -f "$DIGEST_FILE" ]]; then
+             OLD_DIGEST=$(cat "$DIGEST_FILE")
+           else
+             OLD_DIGEST=""
+           fi
+ 
+           echo "Old digest: $OLD_DIGEST"
+           echo "New digest: ${{ steps.digest.outputs.digest }}"
+ 
+           if [[ "$OLD_DIGEST" != "${{ steps.digest.outputs.digest }}" ]]; then
+             echo "changed=true" >> $GITHUB_OUTPUT
+           else
+             echo "changed=false" >> $GITHUB_OUTPUT
+           fi
 
       - name: Upload new digest as artifact
         if: env.updated == 'true'
