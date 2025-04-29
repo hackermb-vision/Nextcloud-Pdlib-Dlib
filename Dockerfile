@@ -6,7 +6,7 @@ FROM nextcloud:production-fpm AS builder
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake pkg-config autoconf libtool \
-    libopenblas-dev libx11-dev php-dev php-pear git unzip wget
+    libopenblas-dev libx11-dev git unzip wget
 
 # Build dlib
 ARG DLIB_VERSION=19.24
