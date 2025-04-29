@@ -15,9 +15,6 @@ RUN apt-get update && apt-get install -y \
     liblapack-dev \
     bzip2 \
     libbz2-dev \
-    php-dev \
-    pkg-config \
-    && docker-php-ext-install bz2
 
 # Build dlib
 RUN git clone https://github.com/davisking/dlib.git \
