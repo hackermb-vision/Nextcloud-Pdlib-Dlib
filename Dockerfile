@@ -24,7 +24,7 @@ RUN git clone https://github.com/matiasdelellis/pdlib.git && \
 FROM nextcloud:production
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libx11-6 libxext6 libopenblas-base && \
+    libx11-6 libxext6 libopenblas0 && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy built libraries and PHP extension from builder
