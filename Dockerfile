@@ -35,16 +35,6 @@ RUN git clone https://github.com/goodspb/pdlib.git \
 # Stage 2: Final runtime container
 FROM nextcloud:latest
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libx11-6 \
-    libopenblas0 \
-    liblapack3 \
-    libbz2-1.0 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy the built pdlib extension from the build stage
 COPY --from=build /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
 COPY --from=build /usr/local/lib/libdlib.so /usr/local/lib/libdlib.so
