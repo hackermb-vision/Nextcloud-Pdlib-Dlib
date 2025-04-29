@@ -2,17 +2,16 @@ name: Check for Nextcloud Base Image Update
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # Daily at 6 AM UTC
-  workflow_dispatch:      # Allows manual triggering
+    - cron: '0 6 * * *'
+  workflow_dispatch:
 
 jobs:
-  check-nextcloud-image:
+  check-nextcloud:
     runs-on: ubuntu-latest
+    outputs:
+      updated: ${{ steps.check.outputs.updated }}
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
       - name: Install skopeo
         run: |
           sudo apt-get update
@@ -21,36 +20,30 @@ jobs:
       - name: Get latest image digest
         id: digest
         run: |
-          DIGEST=$(skopeo inspect docker://docker.io/library/nextcloud:production --format '{{.Digest}}')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "digest=$(skopeo inspect docker://docker.io/library/nextcloud:production --format '{{.Digest}}')" >> $GITHUB_OUTPUT
 
-      - name: Check for digest change
+      - name: Compare to previous
         id: check
         run: |
-          DIGEST_FILE=".nextcloud_base_digest"
-          if [[ -f "$DIGEST_FILE" ]]; then
-            OLD_DIGEST=$(cat "$DIGEST_FILE")
+          DIGEST_FILE=.nextcloud_base_digest
+          NEW_DIGEST="${{ steps.digest.outputs.digest }}"
+          echo "New digest: $NEW_DIGEST"
+
+          PREV_DIGEST=$(cat $DIGEST_FILE 2>/dev/null || echo "")
+          echo "Previous digest: $PREV_DIGEST"
+
+          if [[ "$PREV_DIGEST" != "$NEW_DIGEST" ]]; then
+            echo "Digest updated!"
+            echo "$NEW_DIGEST" > $DIGEST_FILE
+            echo "updated=true" >> $GITHUB_OUTPUT
           else
-            OLD_DIGEST=""
+            echo "No update needed"
+            echo "updated=false" >> $GITHUB_OUTPUT
           fi
 
-          echo "Old digest: $OLD_DIGEST"
-          echo "New digest: ${{ steps.digest.outputs.digest }}"
-
-          if [[ "$OLD_DIGEST" != "${{ steps.digest.outputs.digest }}" ]]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Commit new digest to trigger build
-        if: steps.check.outputs.changed == 'true'
-        run: |
-          echo "${{ steps.digest.outputs.digest }}" > .nextcloud_base_digest
-          git config user.name ChaseMB00
-          git config user.email ${{ secrets.GH_EMAIL }}
-          git add .nextcloud_base_digest
-          git commit -m "Nextcloud base image updated: trigger rebuild"
-      
-          git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
-
+      - name: Upload digest file if updated
+        if: steps.check.outputs.updated == 'true'
+        uses: actions/upload-artifact@v3
+        with:
+          name: updated-digest
+          path: .nextcloud_base_digest
