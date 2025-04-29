@@ -50,17 +50,6 @@ jobs:
             echo "updated=false" >> $GITHUB_ENV
           fi
 
- 
-           echo "Old digest: $OLD_DIGEST"
- 
-           if [[ "$OLD_DIGEST" != "$NEW_DIGEST" ]]; then
-             echo "$NEW_DIGEST" > "$DIGEST_FILE"
-             echo "Digest updated!"
-             echo "updated=true" >> $GITHUB_ENV
-           else
-             echo "No update needed."
-             echo "updated=false" >> $GITHUB_ENV
-
       - name: Upload new digest as artifact
         if: env.updated == 'true'
         uses: actions/upload-artifact@v4
