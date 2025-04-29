@@ -1,7 +1,7 @@
 ########################
 # Build stage (same as Nextcloud base)
 ########################
-FROM nextcloud:production AS builder
+FROM nextcloud:production-fpm AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -22,7 +22,7 @@ RUN git clone https://github.com/matiasdelellis/pdlib.git && \
 ########################
 # Final stage (same as builder, but minimal)
 ########################
-FROM nextcloud:production
+FROM nextcloud:production-fpm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libx11-6 libxext6 libopenblas0 && \
