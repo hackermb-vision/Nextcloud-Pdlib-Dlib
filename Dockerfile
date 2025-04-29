@@ -1,44 +1,70 @@
-# Stage 1: Build stage
-FROM nextcloud:latest as build
+# Using the nextcloud:apache image as a base
+FROM nextcloud:latest
 
-# Set up environment variables
+# Set up environment variables or necessary settings
 ENV DEBIAN_FRONTEND=noninteractive
+
+# SSL install, needs setssl.sh in root of build folder.  (If you want to use your own ssl cert on Apache with no reverse proxy)
+# Config your domain and email if using this.
+# COPY setssl.sh /usr/local/bin/
+# RUN /usr/local/bin/setssl.sh subdomain.domain.com admin@domain.com
 
 # Install dependencies for building dlib and pdlib
 RUN apt-get update && apt-get install -y \
-    git \
-    wget \
-    cmake \
+# Install ffmpeg
     ffmpeg \
+# ffmpeg Libraries:    
+    # libavcodec-extra \
+    # libavdevice-dev \
+    # libavformat-dev \
+    # libavfilter-dev \
+    # libswresample-dev \
+    # libswscale-dev \
+    # libavutil-dev \
+# Used to clone & build
+    git \
+    wget \   
+    cmake \
+# Dependenies for pdlib    
     libx11-dev \
+# OpenBLAS Library - optional
     libopenblas-dev \
     liblapack-dev \
+# For Facerecognition app to unzip models
     bzip2 \
-    libbz2-dev \
+    libbz2-dev && \
+    docker-php-ext-install bz2
 
-# Build dlib
+# May or may not need    
+    # build-essential \
+    # pkg-config \
+    # libpostproc-dev \
+
+# Clone, build, and install Dlib as a shared library
 RUN git clone https://github.com/davisking/dlib.git \
     && mkdir dlib/dlib/build \
     && cd dlib/dlib/build \
     && cmake -DBUILD_SHARED_LIBS=ON .. \
-    && make -j$(nproc) \
+    && make \
     && make install
 
-# Build pdlib
+# Clone, build, and install pdlib
 RUN git clone https://github.com/goodspb/pdlib.git \
     && cd pdlib \
     && phpize \
     && ./configure --enable-debug \
-    && make -j$(nproc) \
+    # If the above command doesn't find dlib, uncomment the line below:
+    # && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure --enable-debug \
+    && make \
     && make install
 
-# Stage 2: Final runtime container
-FROM nextcloud:latest
+# Append the necessary extension configuration to php.ini (for Docker that means add file to php/conf.d/)
+RUN echo "[pdlib]" >> /usr/local/etc/php/conf.d/docker-php-ext-pblib.ini \
+    && echo "extension=\"pdlib.so\"" >> /usr/local/etc/php/conf.d/docker-php-ext-pblib.ini
 
-# Copy the built pdlib extension from the build stage
-COPY --from=build /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
-COPY --from=build /usr/local/lib/libdlib.so /usr/local/lib/libdlib.so
-
-# Configure PHP to load pdlib
-RUN echo "[pdlib]" > /usr/local/etc/php/conf.d/docker-php-ext-pdlib.ini \
-    && echo "extension=pdlib.so" >> /usr/local/etc/php/conf.d/docker-php-ext-pdlib.ini
+# Clean up
+RUN apt-get autoremove -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/tmp/*
