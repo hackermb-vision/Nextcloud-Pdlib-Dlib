@@ -19,12 +19,13 @@ RUN git clone https://github.com/matiasdelellis/pdlib.git && \
     cd pdlib && phpize && ./configure && make -j$(nproc) && make install
 
 ########################
-# Final runtime stage (Alpine + Nextcloud)
+# Final runtime stage Nextcloud
 ########################
-FROM nextcloud:latest
+FROM nextcloud:production
 
-# Install only the runtime Alpine packages
-RUN apk add --no-cache libx11 libxext openblas
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libx11-6 libxext6 libopenblas-base && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy built libraries and PHP extension from builder
 COPY --from=builder /usr/local/lib/libdlib.so* /usr/local/lib/
