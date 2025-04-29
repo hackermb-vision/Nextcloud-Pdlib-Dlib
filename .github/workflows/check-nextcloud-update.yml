@@ -2,8 +2,8 @@ name: Check for Nextcloud Base Image Update
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-  workflow_dispatch:
+    - cron: '0 6 * * *'  # Every day at 6 AM UTC
+  workflow_dispatch:      # Allow manual trigger
 
 jobs:
   check-nextcloud:
@@ -12,6 +12,9 @@ jobs:
       updated: ${{ steps.check.outputs.updated }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install skopeo
         run: |
           sudo apt-get update
@@ -22,28 +25,34 @@ jobs:
         run: |
           echo "digest=$(skopeo inspect docker://docker.io/library/nextcloud:production --format '{{.Digest}}')" >> $GITHUB_OUTPUT
 
-      - name: Compare to previous
+      - name: Compare with previous digest
         id: check
         run: |
-          DIGEST_FILE=.nextcloud_base_digest
+          DIGEST_FILE=".nextcloud_base_digest"
           NEW_DIGEST="${{ steps.digest.outputs.digest }}"
           echo "New digest: $NEW_DIGEST"
 
-          PREV_DIGEST=$(cat $DIGEST_FILE 2>/dev/null || echo "")
-          echo "Previous digest: $PREV_DIGEST"
+          if [ -f "$DIGEST_FILE" ]; then
+            OLD_DIGEST=$(cat "$DIGEST_FILE")
+          else
+            OLD_DIGEST=""
+          fi
 
-          if [[ "$PREV_DIGEST" != "$NEW_DIGEST" ]]; then
+          echo "Previous digest: $OLD_DIGEST"
+
+          if [[ "$OLD_DIGEST" != "$NEW_DIGEST" ]]; then
+            echo "$NEW_DIGEST" > "$DIGEST_FILE"
             echo "Digest updated!"
-            echo "$NEW_DIGEST" > $DIGEST_FILE
             echo "updated=true" >> $GITHUB_OUTPUT
           else
-            echo "No update needed"
+            echo "No update detected."
             echo "updated=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Upload digest file if updated
         if: steps.check.outputs.updated == 'true'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: updated-digest
+          name: nextcloud-base-digest
           path: .nextcloud_base_digest
+          include-hidden-files: true
