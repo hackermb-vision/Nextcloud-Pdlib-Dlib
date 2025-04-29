@@ -47,8 +47,8 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: |
           echo "${{ steps.digest.outputs.digest }}" > .nextcloud_base_digest
-          git config user.name github-actions
-          git config user.email github-actions@github.com
+          git config user.name ChaseMB00
+          git config user.email ${{ secrets.GH_EMAIL }}
           git add .nextcloud_base_digest
           git commit -m "Nextcloud base image updated: trigger rebuild"
       
