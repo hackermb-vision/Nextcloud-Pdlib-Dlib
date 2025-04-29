@@ -1,70 +1,32 @@
-# Using the nextcloud:apache image as a base
+FROM php:8.2-cli-bullseye AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake pkg-config autoconf libtool libopenblas-dev libx11-dev wget unzip
+
+# Build dlib
+ARG DLIB_VERSION=19.19
+RUN wget -q -O dlib.tar.gz https://github.com/davisking/dlib/archive/refs/tags/v${DLIB_VERSION}.tar.gz && \
+    tar -xzf dlib.tar.gz && mv dlib-* dlib && \
+    cd dlib && mkdir build && cd build && \
+    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release .. && \
+    make -j$(nproc) && make install
+
+# Build pdlib (PHP extension for dlib)
+ARG PDLIB_VERSION=master
+RUN wget -q -O pdlib.zip https://github.com/matiasdelellis/pdlib/archive/${PDLIB_VERSION}.zip && \
+    unzip pdlib.zip && mv pdlib-* pdlib && \
+    cd pdlib && phpize && ./configure && \
+    make -j$(nproc) && make install
+
 FROM nextcloud:latest
 
-# Set up environment variables or necessary settings
-ENV DEBIAN_FRONTEND=noninteractive
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends libopenblas-base libx11-6 libxext6 && rm -rf /var/lib/apt/lists/*
 
-# SSL install, needs setssl.sh in root of build folder.  (If you want to use your own ssl cert on Apache with no reverse proxy)
-# Config your domain and email if using this.
-# COPY setssl.sh /usr/local/bin/
-# RUN /usr/local/bin/setssl.sh subdomain.domain.com admin@domain.com
+# Copy dlib and pdlib from builder
+COPY --from=builder /usr/local/lib/libdlib.so* /usr/local/lib/
+COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
 
-# Install dependencies for building dlib and pdlib
-RUN apt-get update && apt-get install -y \
-# Install ffmpeg
-    ffmpeg \
-# ffmpeg Libraries:    
-    # libavcodec-extra \
-    # libavdevice-dev \
-    # libavformat-dev \
-    # libavfilter-dev \
-    # libswresample-dev \
-    # libswscale-dev \
-    # libavutil-dev \
-# Used to clone & build
-    git \
-    wget \   
-    cmake \
-# Dependenies for pdlib    
-    libx11-dev \
-# OpenBLAS Library - optional
-    libopenblas-dev \
-    liblapack-dev \
-# For Facerecognition app to unzip models
-    bzip2 \
-    libbz2-dev && \
-    docker-php-ext-install bz2
-
-# May or may not need    
-    # build-essential \
-    # pkg-config \
-    # libpostproc-dev \
-
-# Clone, build, and install Dlib as a shared library
-RUN git clone https://github.com/davisking/dlib.git \
-    && mkdir dlib/dlib/build \
-    && cd dlib/dlib/build \
-    && cmake -DBUILD_SHARED_LIBS=ON .. \
-    && make \
-    && make install
-
-# Clone, build, and install pdlib
-RUN git clone https://github.com/goodspb/pdlib.git \
-    && cd pdlib \
-    && phpize \
-    && ./configure --enable-debug \
-    # If the above command doesn't find dlib, uncomment the line below:
-    # && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure --enable-debug \
-    && make \
-    && make install
-
-# Append the necessary extension configuration to php.ini (for Docker that means add file to php/conf.d/)
-RUN echo "[pdlib]" >> /usr/local/etc/php/conf.d/docker-php-ext-pblib.ini \
-    && echo "extension=\"pdlib.so\"" >> /usr/local/etc/php/conf.d/docker-php-ext-pblib.ini
-
-# Clean up
-RUN apt-get autoremove -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /tmp/* \
-    && rm -rf /var/tmp/*
+# Enable pdlib extension in PHP
+RUN echo "extension=pdlib.so" > /usr/local/etc/php/conf.d/pdlib.ini
