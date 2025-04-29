@@ -1,0 +1,54 @@
+name: Check for Nextcloud Base Image Update
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  workflow_dispatch:      # Allows manual triggering
+
+jobs:
+  check-nextcloud-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Get latest image digest
+        id: digest
+        run: |
+          DIGEST=$(skopeo inspect docker://docker.io/library/nextcloud:production --format '{{.Digest}}')
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Check for digest change
+        id: check
+        run: |
+          DIGEST_FILE=".nextcloud_base_digest"
+          if [[ -f "$DIGEST_FILE" ]]; then
+            OLD_DIGEST=$(cat "$DIGEST_FILE")
+          else
+            OLD_DIGEST=""
+          fi
+
+          echo "Old digest: $OLD_DIGEST"
+          echo "New digest: ${{ steps.digest.outputs.digest }}"
+
+          if [[ "$OLD_DIGEST" != "${{ steps.digest.outputs.digest }}" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit new digest to trigger build
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          echo "${{ steps.digest.outputs.digest }}" > .nextcloud_base_digest
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add .nextcloud_base_digest
+          git commit -m "Nextcloud base image updated: trigger rebuild"
+          git push
