@@ -1,36 +1,65 @@
-########################
-# Build stage (same as Nextcloud base)
-########################
-FROM nextcloud:production-fpm AS builder
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake pkg-config autoconf libtool \
-    libopenblas-dev libx11-dev git unzip wget
-
-# Build dlib
-ARG DLIB_VERSION=19.24
-RUN git clone --branch v${DLIB_VERSION} --depth 1 https://github.com/davisking/dlib.git && \
-    mkdir -p dlib/dlib/build && cd dlib/dlib/build && \
-    cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release .. && \
-    make -j$(nproc) && make install
-
-# Build pdlib
-RUN git clone https://github.com/matiasdelellis/pdlib.git && \
-    cd pdlib && phpize && ./configure && make -j$(nproc) && make install
-
-########################
-# Final stage (same as builder, but minimal)
-########################
 FROM nextcloud:production-fpm
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libx11-6 libxext6 libopenblas0 && \
-    rm -rf /var/lib/apt/lists/*
 
-# Copy libraries and extension
-COPY --from=builder /usr/local/lib/libdlib.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/php/extensions/ /usr/local/lib/php/extensions/
-
-# Enable pdlib extension
-RUN echo "extension=pdlib.so" > /usr/local/etc/php/conf.d/pdlib.ini
+ # Set up environment variables or necessary settings
+ ENV DEBIAN_FRONTEND=noninteractive
+ 
+ # Install dependencies for building dlib and pdlib
+ RUN apt-get update && apt-get install -y \
+ # Install ffmpeg
+     ffmpeg \
+ # ffmpeg Libraries:    
+     # libavcodec-extra \
+     # libavdevice-dev \
+     # libavformat-dev \
+     # libavfilter-dev \
+     # libswresample-dev \
+     # libswscale-dev \
+     # libavutil-dev \
+ # Used to clone & build
+     git \
+     wget \   
+     cmake \
+ # Dependenies for pdlib    
+     libx11-dev \
+ # OpenBLAS Library - optional
+     libopenblas-dev \
+     liblapack-dev \
+ # For Facerecognition app to unzip models
+     bzip2 \
+     libbz2-dev && \
+     docker-php-ext-install bz2
+ 
+ # May or may not need    
+     # build-essential \
+     # pkg-config \
+     # libpostproc-dev \
+ 
+ # Clone, build, and install Dlib as a shared library
+ RUN git clone https://github.com/davisking/dlib.git \
+     && mkdir dlib/dlib/build \
+     && cd dlib/dlib/build \
+     && cmake -DBUILD_SHARED_LIBS=ON .. \
+     && make \
+     && make install
+ 
+ # Clone, build, and install pdlib
+ RUN git clone https://github.com/goodspb/pdlib.git \
+     && cd pdlib \
+     && phpize \
+     && ./configure --enable-debug \
+     # If the above command doesn't find dlib, uncomment the line below:
+     # && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure --enable-debug \
+     && make \
+     && make install
+ 
+ # Append the necessary extension configuration to php.ini (for Docker that means add file to php/conf.d/)
+ RUN echo "[pdlib]" >> /usr/local/etc/php/conf.d/docker-php-ext-pblib.ini \
+     && echo "extension=\"pdlib.so\"" >> /usr/local/etc/php/conf.d/docker-php-ext-pblib.ini
+ 
+ # Clean up
+ RUN apt-get autoremove -y \
+     && apt-get clean \
+     && rm -rf /var/lib/apt/lists/* \
+     && rm -rf /tmp/* \
+     && rm -rf /var/tmp/*
