@@ -1,4 +1,4 @@
-FROM nextcloud:production-fpm
+FROM nextcloud:production
 
 
  # Set up environment variables or necessary settings
