@@ -46,8 +46,11 @@ FROM nextcloud:production
  # Clone, build, and install pdlib
  RUN git clone https://github.com/goodspb/pdlib.git \
      && cd pdlib \
+     # dlib >= 20 requires C++17, but pdlib hardcodes -std=c++14
+     && sed -i 's/-std=c++14/-std=c++17/g' config.m4 \
      && phpize \
      && ./configure --enable-debug \
+     && sed -i 's/-std=c++14/-std=c++17/g' Makefile \
      # If the above command doesn't find dlib, uncomment the line below:
      # && PKG_CONFIG_PATH=/usr/local/lib/pkgconfig ./configure --enable-debug \
      && make \
